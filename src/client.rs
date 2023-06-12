@@ -5,11 +5,30 @@ use crate::{
 use log::trace;
 use tokio::net::TcpStream;
 
+/// Simple asynchronous rcon client. Call `connect()` to establish a connection
+/// and authenticate. The client should be `mut` as it keeps a counter used for
+/// [Packet] IDs.
+///
+/// ## Example
+/// ```no_run
+/// use sourcon::client::Client;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let host = "dev.viora.sh:27016";
+///     // client must be mutable so we can increment packet IDs
+///     let mut client = Client::connect(host, "<put rcon password here>").await?;
+///     let response = client.command("echo hi").await?;
+///
+///     assert_eq!(response.body(), "hi");
+/// }
+/// ```
 pub struct Client {
     next_packet_id: i32,
     stream: TcpStream,
 }
 
+/// Container struct for a response that can be glued together from multiple [Packet]s.
 pub struct Response {
     body: String,
 }
@@ -38,8 +57,14 @@ impl Client {
         })
     }
 
+    /// Run a rcon command asynchronously. In case of a response being split
+    /// between multiple packets, they will be joined together afterwards.
     pub async fn command(&mut self, command: &str) -> Result<Response, RconError> {
         let command_packet = self.create_packet(command);
+        // since srcds can split up the response but it won't tell us how many
+        // packets to expect, we send a second packet immediately afterwards
+        // with a blank command so that we can get a confirmation that there are
+        // no more packets in response to our command.
         let tracking_packet = self.create_packet("");
 
         trace!("sending main packet to server");
@@ -76,9 +101,10 @@ impl Client {
         Packet::new(self.next_packet_id, PacketType::Exec, command)
     }
 
+    /// Special case of `command` that will probably be generalized later.
     async fn auth(password: &str, stream: &TcpStream) -> Result<(), RconError> {
         let auth_packet = Packet::new(1, PacketType::Auth, password);
-        let tracking_packet = Packet::new(2, PacketType::Exec, password);
+        let tracking_packet = Packet::new(2, PacketType::Exec, "");
 
         trace!("sending auth packet to server");
         Self::write_to_stream(&auth_packet, stream).await?;
@@ -86,10 +112,12 @@ impl Client {
         Self::write_to_stream(&tracking_packet, stream).await?;
 
         loop {
-            // we are guaranteed to receive responses to packets in the order we sent them
-            // so let's collect responses until we receive the ID for the tracking packet
             let response = Self::read_from_stream(stream).await?;
             trace!("receive response for packet id {}", response.id());
+            if response.id() == -1 {
+                return Err(RconError::AuthenticationError);
+            }
+
             if response.id() == tracking_packet.id() {
                 trace!("that was the tracking packet, completing auth");
                 break;
