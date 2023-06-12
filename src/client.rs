@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use crate::{
     error::RconError,
     packet::{Packet, PacketType},
 };
 use log::trace;
 use tokio::net::TcpStream;
+use tokio::time::timeout;
 
 /// Simple asynchronous rcon client. Call `connect()` to establish a connection
 /// and authenticate. The client should be `mut` as it keeps a counter used for
@@ -41,15 +44,28 @@ impl Response {
     }
 }
 
-impl Client {
-    pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
-        let stream = TcpStream::connect(host)
-            .await
+pub struct ClientBuilder {
+    timeout: Duration,
+}
+
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+impl ClientBuilder {
+    pub async fn connect(self, host: &str, password: &str) -> Result<Client, RconError> {
+        // TODO: customizable timeout?
+        let stream = timeout(self.timeout, TcpStream::connect(host))
+            .await?
             .map_err(RconError::UnreachableHost)?;
 
         trace!("opened tcp stream to {}, attempting auth", host);
 
-        Self::auth(password, &stream).await?;
+        Client::auth(password, &stream).await?;
 
         trace!("auth complete");
 
@@ -57,6 +73,17 @@ impl Client {
             next_packet_id: 100, // IDs 1-99 are reserved for auth (even though we realistically only need two)
             stream,
         })
+    }
+}
+
+impl Client {
+    pub fn with_timeout(timeout: Duration) -> ClientBuilder {
+        ClientBuilder { timeout }
+    }
+
+    pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
+        let builder = ClientBuilder::default();
+        builder.connect(host, password).await
     }
 
     /// Run a rcon command asynchronously. In case of a response being split
