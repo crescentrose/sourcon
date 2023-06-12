@@ -69,11 +69,9 @@ impl ClientBuilder {
         let stream = timeout(self.timeout, TcpStream::connect(host))
             .await?
             .map_err(RconError::UnreachableHost)?;
-
         trace!("opened tcp stream to {}, attempting auth", host);
 
         timeout(self.timeout, Client::auth(password, &stream)).await??;
-
         trace!("auth complete");
 
         Ok(Client {
@@ -113,7 +111,7 @@ impl Client {
     /// Run a rcon command asynchronously. In case of a response being split
     /// between multiple packets, they will be joined together afterwards.
     pub async fn command(&mut self, command: &str) -> Result<Response, RconError> {
-        timeout(self.timeout, self.execute(&command)).await?
+        timeout(self.timeout, self.execute(command)).await?
     }
 
     async fn execute(&mut self, command: &str) -> Result<Response, RconError> {
@@ -161,12 +159,9 @@ impl Client {
     /// Special case of `command` that will probably be generalized later.
     async fn auth(password: &str, stream: &TcpStream) -> Result<(), RconError> {
         let auth_packet = Packet::new(1, PacketType::Auth, password);
-        let tracking_packet = Packet::new(2, PacketType::Exec, "");
 
         trace!("sending auth packet to server");
         Self::write_to_stream(&auth_packet, stream).await?;
-        trace!("sending tracking (blank) packet to server for auth");
-        Self::write_to_stream(&tracking_packet, stream).await?;
 
         loop {
             let response = Self::read_from_stream(stream).await?;
@@ -175,7 +170,9 @@ impl Client {
                 return Err(RconError::AuthenticationError);
             }
 
-            if response.id() == tracking_packet.id() {
+            if response.id() == auth_packet.id()
+                && *response.packet_type() == PacketType::AuthResponse
+            {
                 trace!("that was the tracking packet, completing auth");
                 break;
             }
