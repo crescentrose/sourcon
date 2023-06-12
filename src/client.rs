@@ -31,6 +31,7 @@ use tokio::time::timeout;
 pub struct Client {
     next_packet_id: i32,
     stream: TcpStream,
+    timeout: Duration,
 }
 
 /// Container struct for a response that can be glued together from multiple [Packet]s.
@@ -65,12 +66,13 @@ impl ClientBuilder {
 
         trace!("opened tcp stream to {}, attempting auth", host);
 
-        Client::auth(password, &stream).await?;
+        timeout(self.timeout, Client::auth(password, &stream)).await??;
 
         trace!("auth complete");
 
         Ok(Client {
             next_packet_id: 100, // IDs 1-99 are reserved for auth (even though we realistically only need two)
+            timeout: self.timeout,
             stream,
         })
     }
