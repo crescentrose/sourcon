@@ -12,15 +12,17 @@ use tokio::net::TcpStream;
 /// ## Example
 /// ```no_run
 /// use sourcon::client::Client;
+/// use std::error::Error;
 ///
 /// #[tokio::main]
-/// async fn main() {
+/// async fn main() -> Result<(), Box<dyn Error>> {
 ///     let host = "dev.viora.sh:27016";
 ///     // client must be mutable so we can increment packet IDs
 ///     let mut client = Client::connect(host, "<put rcon password here>").await?;
 ///     let response = client.command("echo hi").await?;
 ///
 ///     assert_eq!(response.body(), "hi");
+///     Ok(())
 /// }
 /// ```
 pub struct Client {
