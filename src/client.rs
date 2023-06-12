@@ -16,15 +16,20 @@ use tokio::time::timeout;
 /// ```no_run
 /// use sourcon::client::Client;
 /// use std::error::Error;
+/// use std::time::Duration;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
 ///     let host = "dev.viora.sh:27016";
-///     // client must be mutable so we can increment packet IDs
-///     let mut client = Client::connect(host, "<put rcon password here>").await?;
-///     let response = client.command("echo hi").await?;
 ///
+///     // client must be mutable so we can increment packet IDs
+///     let mut client = Client::with_timeout(Duration::from_secs(10))
+///         .connect(host, "<put rcon password here>")
+///         .await?;
+///
+///     let response = client.command("echo hi").await?;
 ///     assert_eq!(response.body(), "hi");
+///
 ///     Ok(())
 /// }
 /// ```
@@ -91,6 +96,10 @@ impl Client {
     /// Run a rcon command asynchronously. In case of a response being split
     /// between multiple packets, they will be joined together afterwards.
     pub async fn command(&mut self, command: &str) -> Result<Response, RconError> {
+        timeout(self.timeout, self.execute(&command)).await?
+    }
+
+    async fn execute(&mut self, command: &str) -> Result<Response, RconError> {
         let command_packet = self.create_packet(command);
         // since srcds can split up the response but it won't tell us how many
         // packets to expect, we send a second packet immediately afterwards
