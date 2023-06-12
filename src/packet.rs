@@ -105,9 +105,9 @@ impl Packet {
         payload.extend_from_slice(&self.size().to_le_bytes());
         payload.extend_from_slice(&self.id().to_le_bytes());
         payload.extend_from_slice(&self.packet_type().to_le_bytes());
-        payload.extend_from_slice(&self.body().unwrap_or(String::from("")).as_bytes());
+        payload.extend_from_slice(self.body().unwrap_or(String::from("")).as_bytes());
         // null terminate the body (C++ interop 🤢), then null terminate the entire package
-        payload.extend_from_slice(&[0 as u8, 0 as u8]);
+        payload.extend_from_slice(&[0, 0]);
         payload
     }
 
@@ -116,7 +116,7 @@ impl Packet {
     // find the byte-length of the packet body, then add 10 to it.
     pub fn size(&self) -> i32 {
         match self.body() {
-            None => Self::BASE_PACKET_SIZE as i32,
+            None => Self::BASE_PACKET_SIZE,
             Some(body) => body.len() as i32 + Self::BASE_PACKET_SIZE,
         }
     }

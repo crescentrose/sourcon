@@ -24,7 +24,7 @@ impl Client {
     pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
         let stream = TcpStream::connect(host)
             .await
-            .map_err(|e| RconError::UnreachableHost(e))?;
+            .map_err(RconError::UnreachableHost)?;
 
         trace!("opened tcp stream to {}, attempting auth", host);
 
@@ -100,10 +100,7 @@ impl Client {
 
     async fn write_to_stream(packet: &Packet, stream: &TcpStream) -> Result<(), RconError> {
         loop {
-            stream
-                .writable()
-                .await
-                .map_err(|e| RconError::SendError(e))?;
+            stream.writable().await.map_err(RconError::SendError)?;
 
             match stream.try_write(&packet.pack()) {
                 Ok(_) => return Ok(()),
@@ -117,10 +114,7 @@ impl Client {
         let mut buf = [0; 4096];
 
         loop {
-            stream
-                .readable()
-                .await
-                .map_err(|e| RconError::ReceiveError(e))?;
+            stream.readable().await.map_err(RconError::ReceiveError)?;
             match stream.try_read(&mut buf) {
                 Ok(_) => break,
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
@@ -128,6 +122,6 @@ impl Client {
             }
         }
 
-        Ok(Packet::unpack(buf)?)
+        Packet::unpack(buf)
     }
 }
