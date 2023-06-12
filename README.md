@@ -2,6 +2,24 @@
 
 Pure Rust async implementation of the [Source RCON protocol](https://developer.valvesoftware.com/wiki/Source_RCON_Protocol).
 
+```rust
+use sourcon::client::Client;
+use std::error::Error;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let host = "dev.viora.sh:27015";
+
+    // client must be mutable
+    let mut client = Client::connect(host, "poop").await?;
+
+    let response = client.command("echo hi").await?;
+    assert_eq!(response.body(), "hi");
+
+    Ok(())
+}
+```
+
 ## What is working
 
 * Authentication
