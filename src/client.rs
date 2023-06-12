@@ -23,9 +23,7 @@ use tokio::time::timeout;
 ///     let host = "dev.viora.sh:27016";
 ///
 ///     // client must be mutable so we can increment packet IDs
-///     let mut client = Client::with_timeout(Duration::from_secs(10))
-///         .connect(host, "<put rcon password here>")
-///         .await?;
+///     let mut client = Client::connect(host, "<put rcon password here>").await?;
 ///
 ///     let response = client.command("echo hi").await?;
 ///     assert_eq!(response.body(), "hi");
@@ -63,8 +61,11 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
+    /// Connect and authenticate with a rcon-enabled server. Uses the timeout
+    /// specified previously in the builder (through [Client::with_timeout]).
+    ///
+    /// Currently only Source servers are supported.
     pub async fn connect(self, host: &str, password: &str) -> Result<Client, RconError> {
-        // TODO: customizable timeout?
         let stream = timeout(self.timeout, TcpStream::connect(host))
             .await?
             .map_err(RconError::UnreachableHost)?;
@@ -84,10 +85,26 @@ impl ClientBuilder {
 }
 
 impl Client {
+    /// Set a timeout for a newly built client. This timeout will be applied to
+    /// all rcon requests. If none is set, the default of 10 seconds will be used.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// use sourcon::client::Client;
+    /// use std::time::Duration;
+    ///
+    /// let mut client = Client::with_timeout(Duration::from_secs(5))
+    ///     .connect("localhost:27015", "<put rcon password here>");
+    /// ```
     pub fn with_timeout(timeout: Duration) -> ClientBuilder {
         ClientBuilder { timeout }
     }
 
+    /// Connect and authenticate with a rcon-enabled server. Default timeout of
+    /// 10 seconds for all commands will be used.
+    ///
+    /// Currently only Source servers are supported.
     pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
         let builder = ClientBuilder::default();
         builder.connect(host, password).await

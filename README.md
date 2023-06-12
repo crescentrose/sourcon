@@ -10,7 +10,6 @@ Pure Rust async implementation of the [Source RCON protocol](https://developer.v
 
 ## To do
 
-* Timeouts
 * Strongly typed commands instead of arbitrary strings
 * Stream UDP logs with password support
 * Implement RCON server for testing purposes and Fun
