@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use crate::{
     error::RconError,
     packet::{Packet, PacketType},
 };
 use log::trace;
 use tokio::net::TcpStream;
+use tokio::time::timeout;
 
 /// Simple asynchronous rcon client. Call `connect()` to establish a connection
 /// and authenticate. The client should be `mut` as it keeps a counter used for
@@ -13,21 +16,25 @@ use tokio::net::TcpStream;
 /// ```no_run
 /// use sourcon::client::Client;
 /// use std::error::Error;
+/// use std::time::Duration;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
 ///     let host = "dev.viora.sh:27016";
+///
 ///     // client must be mutable so we can increment packet IDs
 ///     let mut client = Client::connect(host, "<put rcon password here>").await?;
-///     let response = client.command("echo hi").await?;
 ///
+///     let response = client.command("echo hi").await?;
 ///     assert_eq!(response.body(), "hi");
+///
 ///     Ok(())
 /// }
 /// ```
 pub struct Client {
     next_packet_id: i32,
     stream: TcpStream,
+    timeout: Duration,
 }
 
 /// Container struct for a response that can be glued together from multiple [Packet]s.
@@ -41,27 +48,73 @@ impl Response {
     }
 }
 
-impl Client {
-    pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
-        let stream = TcpStream::connect(host)
-            .await
-            .map_err(RconError::UnreachableHost)?;
+pub struct ClientBuilder {
+    timeout: Duration,
+}
 
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+impl ClientBuilder {
+    /// Connect and authenticate with a rcon-enabled server. Uses the timeout
+    /// specified previously in the builder (through [Client::with_timeout]).
+    ///
+    /// Currently only Source servers are supported.
+    pub async fn connect(self, host: &str, password: &str) -> Result<Client, RconError> {
+        let stream = timeout(self.timeout, TcpStream::connect(host))
+            .await?
+            .map_err(RconError::UnreachableHost)?;
         trace!("opened tcp stream to {}, attempting auth", host);
 
-        Self::auth(password, &stream).await?;
-
+        timeout(self.timeout, Client::auth(password, &stream)).await??;
         trace!("auth complete");
 
         Ok(Client {
             next_packet_id: 100, // IDs 1-99 are reserved for auth (even though we realistically only need two)
+            timeout: self.timeout,
             stream,
         })
+    }
+}
+
+impl Client {
+    /// Set a timeout for a newly built client. This timeout will be applied to
+    /// all rcon requests. If none is set, the default of 10 seconds will be used.
+    ///
+    /// ## Example
+    ///
+    /// ```no_run
+    /// use sourcon::client::Client;
+    /// use std::time::Duration;
+    ///
+    /// let mut client = Client::with_timeout(Duration::from_secs(5))
+    ///     .connect("localhost:27015", "<put rcon password here>");
+    /// ```
+    pub fn with_timeout(timeout: Duration) -> ClientBuilder {
+        ClientBuilder { timeout }
+    }
+
+    /// Connect and authenticate with a rcon-enabled server. Default timeout of
+    /// 10 seconds for all commands will be used.
+    ///
+    /// Currently only Source servers are supported.
+    pub async fn connect(host: &str, password: &str) -> Result<Self, RconError> {
+        let builder = ClientBuilder::default();
+        builder.connect(host, password).await
     }
 
     /// Run a rcon command asynchronously. In case of a response being split
     /// between multiple packets, they will be joined together afterwards.
     pub async fn command(&mut self, command: &str) -> Result<Response, RconError> {
+        timeout(self.timeout, self.execute(command)).await?
+    }
+
+    async fn execute(&mut self, command: &str) -> Result<Response, RconError> {
         let command_packet = self.create_packet(command);
         // since srcds can split up the response but it won't tell us how many
         // packets to expect, we send a second packet immediately afterwards
@@ -106,12 +159,9 @@ impl Client {
     /// Special case of `command` that will probably be generalized later.
     async fn auth(password: &str, stream: &TcpStream) -> Result<(), RconError> {
         let auth_packet = Packet::new(1, PacketType::Auth, password);
-        let tracking_packet = Packet::new(2, PacketType::Exec, "");
 
         trace!("sending auth packet to server");
         Self::write_to_stream(&auth_packet, stream).await?;
-        trace!("sending tracking (blank) packet to server for auth");
-        Self::write_to_stream(&tracking_packet, stream).await?;
 
         loop {
             let response = Self::read_from_stream(stream).await?;
@@ -120,7 +170,9 @@ impl Client {
                 return Err(RconError::AuthenticationError);
             }
 
-            if response.id() == tracking_packet.id() {
+            if response.id() == auth_packet.id()
+                && *response.packet_type() == PacketType::AuthResponse
+            {
                 trace!("that was the tracking packet, completing auth");
                 break;
             }

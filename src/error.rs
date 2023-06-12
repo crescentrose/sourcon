@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tokio::time::error::Elapsed;
 
 /// Possible errors for the package.
 #[derive(Error, Debug)]
@@ -27,4 +28,7 @@ pub enum RconError {
     /// Returned if you can't remember the password.
     #[error("bad password")]
     AuthenticationError,
+    /// Returned if the server did not respond in time.
+    #[error("timeout")]
+    TimeoutError(#[from] Elapsed),
 }

@@ -5,7 +5,7 @@ use crate::error::RconError;
 /// PacketType enumerates the possible rcon packet types. They are seen as an
 /// implementation detail of the library and while you can craft your own
 /// packets, hopefully you will not have to.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PacketType {
     /// Referred to as `SERVERDATA_AUTH` in Valve docs. This must be sent to the
     /// server prior to Exec commands.
