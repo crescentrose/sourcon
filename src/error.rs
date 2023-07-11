@@ -7,6 +7,9 @@ pub enum RconError {
     /// Returned if we received a packet that does not have a type known to us.
     #[error("unknown rcon packet type: {0}")]
     UnknownPacketType(i32),
+    /// Returned if the packet is larger than 4096 bytes.
+    #[error("packet too large")]
+    AbsoluteUnit,
     /// Returned if the header is mangled in some way (bad offsets, incomplete
     /// response)
     #[error("packet header malformed (can't parse size, id or type)")]
@@ -31,4 +34,10 @@ pub enum RconError {
     /// Returned if the server did not respond in time.
     #[error("timeout")]
     TimeoutError(#[from] Elapsed),
+    /// Returned by the server if it can not bind to the host address.
+    #[error("bind error")]
+    BindError(#[source] std::io::Error),
+    /// Returned by the server if it can not accept an incoming connection.
+    #[error("bind error")]
+    IncomingConnectionError(#[source] std::io::Error),
 }

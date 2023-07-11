@@ -5,7 +5,7 @@ use crate::error::RconError;
 /// PacketType enumerates the possible rcon packet types. They are seen as an
 /// implementation detail of the library and while you can craft your own
 /// packets, hopefully you will not have to.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PacketType {
     /// Referred to as `SERVERDATA_AUTH` in Valve docs. This must be sent to the
     /// server prior to Exec commands.
@@ -57,7 +57,7 @@ impl TryInto<PacketType> for i32 {
 pub type RawPacket = [u8; 4096];
 
 /// Low level implementation of a rcon packet.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Packet {
     id: i32,
     packet_type: PacketType,
@@ -72,12 +72,13 @@ impl Packet {
     /// > find the byte-length of the packet body, then add 10 to it.
     ///
     /// And that is exactly what we are going to do.
-    pub const BASE_PACKET_SIZE: i32 = 10;
+    pub const BASE_PACKET_SIZE: usize = 10;
 
     const SIZE_RANGE: RangeInclusive<usize> = 0..=3;
     const ID_RANGE: RangeInclusive<usize> = 4..=7;
     const TYPE_RANGE: RangeInclusive<usize> = 8..=11;
     const BODY_OFFSET: usize = 12;
+    const MAX_PACKET_SIZE: usize = 4096;
 
     /// Creates a new packet. `body` will likely become an [Option] in the
     /// future.
@@ -98,9 +99,11 @@ impl Packet {
         // -> last index == 12? => no body
 
         let raw_size = &incoming[Self::SIZE_RANGE];
-        let size = i32::from_le_bytes(raw_size.try_into()?);
-        let body_size = size - Self::BASE_PACKET_SIZE;
-        let last_elem: usize = body_size as usize + Self::BODY_OFFSET;
+        let size: usize = i32::from_le_bytes(raw_size.try_into()?) as usize;
+        let body_size: usize = size - Self::BASE_PACKET_SIZE;
+        if body_size > Self::MAX_PACKET_SIZE {
+            return Err(RconError::AbsoluteUnit);
+        }
 
         let raw_id = &incoming[Self::ID_RANGE];
         let id = i32::from_le_bytes(raw_id.try_into()?);
@@ -110,10 +113,10 @@ impl Packet {
 
         let raw_body = &incoming[Self::BODY_OFFSET..];
 
-        let body = if last_elem == Self::BODY_OFFSET {
+        let body = if body_size == 0 {
             None
         } else {
-            Some(str::from_utf8(&raw_body[..=last_elem])?.to_string())
+            Some(str::from_utf8(&raw_body[..=(body_size - 1)])?.to_string()) // null terminated, so chop off the last byte
         };
 
         let packet = Packet {
@@ -141,9 +144,10 @@ impl Packet {
     /// Returns the size of the packet in bytes, excluding the size of the size
     /// field itself.
     pub fn size(&self) -> i32 {
+        // TODO: -> usize
         match self.body() {
-            None => Self::BASE_PACKET_SIZE,
-            Some(body) => body.len() as i32 + Self::BASE_PACKET_SIZE,
+            None => Self::BASE_PACKET_SIZE as i32,
+            Some(body) => body.len() as i32 + Self::BASE_PACKET_SIZE as i32,
         }
     }
 

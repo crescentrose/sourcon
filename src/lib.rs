@@ -2,3 +2,4 @@
 pub mod client;
 pub mod error;
 pub mod packet;
+pub mod server;

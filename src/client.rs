@@ -1,10 +1,9 @@
-use std::time::Duration;
-
 use crate::{
     error::RconError,
     packet::{Packet, PacketType},
 };
 use log::trace;
+use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 
@@ -66,6 +65,7 @@ impl ClientBuilder {
     ///
     /// Currently only Source servers are supported.
     pub async fn connect(self, host: &str, password: &str) -> Result<Client, RconError> {
+
         let stream = timeout(self.timeout, TcpStream::connect(host))
             .await?
             .map_err(RconError::UnreachableHost)?;
