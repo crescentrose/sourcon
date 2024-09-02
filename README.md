@@ -32,3 +32,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 * Stream UDP logs with password support
 * Implement RCON server for testing purposes and Fun
 * Tests
+
+## License
+
+This project is licensed under the terms of the MIT license. See [LICENSE](LICENSE) for the
+full text.
