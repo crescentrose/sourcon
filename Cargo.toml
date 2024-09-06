@@ -1,14 +1,20 @@
 [package]
 name = "sourcon"
+description = "A rcon client for game servers based on the the Source engine."
+authors = ["Ivan Ostric"]
 version = "0.1.0"
+license = "MIT"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["rcon", "source-engine"]
+categories = ["network-programming"]
+repository = "https://github.com/crescentrose/sourcon"
+homepage = "https://github.com/crescentrose/sourcon"
+readme = "README.md"
 
 [dependencies]
-log = "0.4.19"
-thiserror = "1.0.40"
-tokio = { version = "1.28.2", features = [
+log = "0.4.22"
+thiserror = "1.0.63"
+tokio = { version = "1.40.0", features = [
   "rt",
   "rt-multi-thread",
   "macros",

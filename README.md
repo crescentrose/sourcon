@@ -26,12 +26,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
 * Sending commands to a server
 * Receiving responses
 
-## To do
+## What could be added
 
 * Strongly typed commands instead of arbitrary strings
 * Stream UDP logs with password support
 * Implement RCON server for testing purposes and Fun
 * Tests
+
+## Development
+
+I am not currently actively working on any projects using this library (though it might happen in
+the future). If you would like to contribute, please feel free to open issues, submit PRs or even
+fork the entire thing.
 
 ## License
 

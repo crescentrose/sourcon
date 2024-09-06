@@ -27,13 +27,13 @@ impl PacketType {
     /// Valve tells us that the fields in the header of a rcon packet are all
     /// signed 32-bit integers in low-endian, so we can easily convert like so.
     pub fn to_le_bytes(&self) -> [u8; 4] {
-        let type_value: i32 = match self {
-            PacketType::Auth => 3,
+        match self {
+            PacketType::Auth => 3_i32,
             PacketType::Exec => 2,
             PacketType::AuthResponse => 2, // not a bug, they do indeed have the same IDs...
             PacketType::Response => 0,
-        };
-        type_value.to_le_bytes()
+        }
+        .to_le_bytes()
     }
 }
 
